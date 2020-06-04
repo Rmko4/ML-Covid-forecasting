@@ -49,20 +49,31 @@ def unpackData(data, country):
 
     return deaths, cases
 
-def detrendWithPolynominal(y, order):
+def detrendWithPolynominal(y, order, assumeNoChangeNextDay):
 
     #the x points are just the days
     x =[i for i in range(len(y))]
 
-    model = np.polyfit(x , y, order)
-    predicted = np.polyval(model, x)
-    return model, predicted
+    if (assumeNoChangeNextDay):
+        #add a single data point for the next day with no change in y 
+        x.append(len(x))
+        y.append(y[len(y)-1])
 
-def detrendWeekdays(data):
+    model = np.polyfit(x , y, order)
+
+    if (assumeNoChangeNextDay):
+        x.pop(len(x)-1)
+        y.pop(len(y)-1)
+
+    predict = np.polyval(model, x)
+
+    return model, predict
+
+def trendWeekdays(data):
     averageDay = 0
     model = [0 for i in range(7)]
-
     numberDatapoints = [0 for i in range(7)]
+
     for i in range(len(data)):
         averageDay += data[i]
         model[(i % 7)] += data[i]
@@ -73,53 +84,70 @@ def detrendWeekdays(data):
 
     for i in range(7):
         model[i] = model[i] / numberDatapoints[i]
-        model[i] = model[i] / averageDay
+        model[i] =  averageDay / model[i]
 
-
-    predictedData = []
+    trend =[]
     for i in range(len(data)):
-        predictedData.append(data[i] * model[(i % 7)])
+        trend.append(data[i] - data[i]* model[(i % 7)])
 
-    return model, predictedData
-
-def removeTrendFromData(data, trendData):
-    result = []
-    for i in range(len(data)):
-        result.append(data[i] - trendData[i])
-    return result
+    return model, trend
 
 def  predictWithModel(modelPolynominals, modelWeekdays, day):
 
      return np.polyval(modelPolynominals, day) * modelWeekdays[(day % 7)]
+
+def removeTrendFromData(data, trend):
+    newData = []
+    for i in range(len(data)):
+        newData.append(data[i] - trend[i])
+    return newData
+
+def combineTrends(trend1, trend2):
+    combinedTrend = []
+    for i in range(len(trend1)):
+        combinedTrend.append(trend1[i] + trend2[i])
+    return combinedTrend
 
 
 def main():
     data = get_data(CSV_PATH)
 
     #make deaths and cases simple arrays
-    deaths, cases = unpackData(data, "Germany")
+    deaths, cases = unpackData(data, "Netherlands")
 
-    #creates a trend using a polynominal function of the given order. The model contain the polynomial coefficients, highest power first.
-    modelPolynominalsDeaths, trendDeaths = detrendWithPolynominal(deaths, 15)
-    modelPolynominalsCases,  trendCases = detrendWithPolynominal(cases, 15)
 
     #removes weekly oscillation of data. The model contains the average proportion of cases at a specific weekday compard to the average. 
-    modelWeekdaysDeaths, trendDeaths = detrendWeekdays(trendDeaths)
-    modelWeekdaysCases, trendCases = detrendWeekdays(trendCases)
+    modelWeekdaysDeaths,  trendWeekDeaths= trendWeekdays(deaths)
+    modelWeekdaysCases, trendWeekCases = trendWeekdays(cases)
 
-    plt.plot(deaths)
-    plt.plot(cases)
-    plt.plot(trendDeaths)
-    plt.plot(trendCases)
+    detrendedDeaths = removeTrendFromData(deaths, trendWeekDeaths)
+    detrendedCases = removeTrendFromData(cases, trendWeekCases)
+
+
+    #creates a trend using a polynominal function of the given order. The model contain the polynomial coefficients, highest power first.
+    modelPolynominalsDeaths, trendPolyDeaths = detrendWithPolynominal(detrendedDeaths, 15, True)
+    modelPolynominalsCases,  trendPolyCases = detrendWithPolynominal(detrendedCases, 15, True)
+
+    combinedDeathTrend = combineTrends(trendPolyDeaths, trendWeekDeaths)
+    combinedCasesTrend = combineTrends(trendPolyCases, trendWeekCases)
+
+    #plot original data next to total trend
+    plt.plot(deaths, label = "original Deaths")
+    plt.plot(cases, label = "original Cases")
+    plt.plot(combinedDeathTrend, label = "trend Deaths")
+    plt.plot(combinedCasesTrend, label = "trend cases")
+    plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+           ncol=2, mode="expand", borderaxespad=0.)
     plt.show()
 
-    #remove trend from data
-    deaths = removeTrendFromData(deaths, trendDeaths)
-    cases = removeTrendFromData(cases, trendCases)
+    detrendedDeaths = removeTrendFromData(deaths, combinedDeathTrend)
+    detrendedCases = removeTrendFromData(cases, combinedCasesTrend)
 
-    plt.plot(deaths)
-    plt.plot(cases)
+    #show detrended data
+    plt.plot(detrendedCases )
+    plt.plot(detrendedDeaths)
     plt.show()
+
 
     #use the two models to predict the next day
     predictionNextDayDeaths = predictWithModel(modelPolynominalsDeaths, modelWeekdaysDeaths, len(deaths) + 1)
