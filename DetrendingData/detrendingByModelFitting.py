@@ -34,18 +34,9 @@ def get_data(path):
 def unpackData(data, country):
     deaths = []
     cases  = []
-    deathsReached100 = False
     casesReached100 = False
     for c, df_country in data:
         if c == country:
-            for i in range(len(df_country.deaths.values)):
-                if (not deathsReached100):
-                    if (df_country.deaths.values[i] >= 20):
-                        deathsReached100 = True
-                    else:
-                        continue
-
-                deaths.append(df_country.deaths.values[i])
             
             for i in range(len(df_country.cases.values)):
                 if (not casesReached100):
@@ -54,6 +45,7 @@ def unpackData(data, country):
                     else:
                         continue
                 cases.append(df_country.cases.values[i])
+                deaths.append(df_country.deaths.values[i])
 
     return deaths, cases
 
@@ -108,17 +100,29 @@ def main():
     data = get_data(CSV_PATH)
 
 
+    f = open("detrendedDataAllCountries", "w")
+
+    f.write("52 2\n")
+
+    i =0
+
     for c, df_country in data:
         deaths, cases = unpackData(data, c)
         
-        if (len(deaths) == 0  or len(cases) == 0):
+        if ( len(cases) < 60 ):
             continue
 
-        detrendOneCountry(deaths, cases, c)
+        i+=1
+
+        detrendOneCountry(deaths, cases, c, f)
+
+    print(i)
+    
+    f.close()
 
 
 
-def detrendOneCountry(deaths, cases, c):
+def detrendOneCountry(deaths, cases, c, f):
     
 
     #removes weekly oscillation of data. The model contains the average proportion of cases at a specific weekday compard to the average. 
@@ -155,43 +159,12 @@ def detrendOneCountry(deaths, cases, c):
     #       ncol=2, mode="expand", borderaxespad=0.)
     #plt.show()
 
-    f = open("detrended_" + c, "w")
-
-    for i in range(polynominal):
-        f.write(str(modelPolynominalsDeaths[i]) + " ")
-    f.write("\n")
-
-    for i in range(7):
-        f.write(str(modelWeekdaysDeaths[i]) + " ")
-    f.write("\n")
 
 
-    f.write(str(len(deaths)))
-    f.write("\n")
-
-    for i in range(len(deaths)):
-        f.write(str(deaths[i]) + " ")
-    f.write("\n")
-
-    for i in range(polynominal):
-        f.write(str(modelPolynominalsCases[i]) + " ")
-    f.write("\n")
-
-    for i in range(7):
-        f.write(str(modelWeekdaysCases[i]) + " ")
-    f.write("\n")
-
-    f.write(str(len(cases)))
-    f.write("\n")
+    f.write(c + " " + str(len(cases)) + "\n")
 
     for i in range(len(cases)):
-        f.write(str(cases[i]) + " ")
-    f.write("\n")
-
-    f.close()
-
-
-
+        f.write(str(deaths[i]) + " " + str(cases[i])+ "\n")
 
 
 if __name__ == "__main__":
