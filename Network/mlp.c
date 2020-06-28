@@ -26,8 +26,9 @@ Matrix makeMatrix(int r, int c) {
   A->rows = r;
   A->columns = c;
   A->matrix = safeMalloc(r * sizeof(double *));
-  for (int row = 0; row < r; row++) {
-    A->matrix[row] = safeMalloc(c * sizeof(double));
+  A->matrix[0] = safeMalloc(r * c * sizeof(double));
+  for (int row = 1; row < r; row++) {
+    A->matrix[row] = A->matrix[row - 1] + c;
   }
   return A;
 }
@@ -95,13 +96,13 @@ Matrix readDataFile(char *fileName) {
 }
 
 int main(int argc, char *argv[]) {
-  int windowSize;
+  int windowSize, nUnits;
   long strParse;
   char *end, *fileName;
   Matrix A;
 
-  if (argc < 2) {
-    printf("Provide args: <filename> <window length>");
+  if (argc < 3) {
+    printf("Provide args: <filename> <window length> <number hidden units>");
     exit(EXIT_FAILURE);
   }
 
@@ -115,6 +116,14 @@ int main(int argc, char *argv[]) {
   }
 
   windowSize = strParse;
+  strParse = strtol(argv[3], &end, 10);
+
+  if (errno != 0 || *end != '\0' || strParse > INT_MAX || strParse < 1) {
+    perror("Error while converting arg.\n");
+    exit(EXIT_FAILURE);
+  }
+
+  nUnits = strParse;
 
   A = readDataFile(fileName);
   freeMatrix(A);
