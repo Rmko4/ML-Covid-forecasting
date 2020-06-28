@@ -34,19 +34,16 @@ Matrix makeMatrix(int r, int c) {
 }
 
 void freeMatrix(Matrix A) {
-  for (int row = 0; row < A->rows; row++) {
-    free(A->matrix[row]);
-  }
+  free(A->matrix[0]);
   free(A->matrix);
   free(A);
 }
 
 double sigmoid(double x) { return 1 / (1 + exp(-x)); }
 
-Matrix readDataFile(char *fileName) {
-  int nSeries, nObsv, nTimeSteps, col;
-  char *p, **names, **dates;
-  Matrix A;
+Matrix *readDataFile(char *fileName, int *nSeries, char ***names) {
+  int nVariate, nTimeSteps;
+  Matrix *Sample;
   FILE *fp;
 
   fp = fopen(fileName, "r");
@@ -56,50 +53,37 @@ Matrix readDataFile(char *fileName) {
     exit(EXIT_FAILURE);
   }
 
-  fscanf(fp, "%d", &nSeries);
-  fscanf(fp, "%d", &nObsv);
-  fscanf(fp, "%d", &nTimeSteps);
+  fscanf(fp, "%d", nSeries);
+  fscanf(fp, "%d", &nVariate);
 
-  names = safeMalloc(nSeries * sizeof(char *));
+  *names = safeMalloc(*nSeries * sizeof(char *));
+  Sample = safeMalloc(*nSeries * sizeof(Matrix));
 
-  for (int i = 0; i < nSeries; i++) {
-    names[i] = safeMalloc(STRLEN * sizeof(char));
-    fscanf(fp, "%s", names[i]);
-  }
+  for (int i = 0; i < *nSeries; i++) {
+    (*names)[i] = safeMalloc(STRLEN * sizeof(char));
+    fscanf(fp, "%s", (*names)[i]);
+    fscanf(fp, "%d", &nTimeSteps);
 
-  dates = safeMalloc(nSeries * sizeof(char *));
+    Sample[i] = makeMatrix(nTimeSteps, nVariate);
 
-  for (int i = 0; i < nSeries; i++) {
-    dates[i] = safeMalloc(DATELEN * sizeof(char));
-    fscanf(fp, "%s", dates[i]);
-  }
-
-  col = nSeries * nObsv;
-  A = makeMatrix(nTimeSteps, col);
-
-  for (int r = 0; r < nTimeSteps; r++) {
-    for (int c = 0; c < col; c++) {
-      fscanf(fp, "%lf", &A->matrix[r][c]);
+    for (int r = 0; r < nTimeSteps; r++) {
+      for (int c = 0; c < nVariate; c++) {
+        fscanf(fp, "%lf", &(Sample[i]->matrix[r][c]));
+      }
     }
-  }
-
-  for (int r = 0; r < nTimeSteps; r++) {
-    for (int c = 0; c < col; c++) {
-      printf("%lf ", A->matrix[r][c]);
-    }
-    printf("\n");
   }
 
   fclose(fp);
 
-  return A;
+  return Sample;
 }
 
 int main(int argc, char *argv[]) {
-  int windowSize, nUnits;
+  int windowSize, nUnits, nSeries;
   long strParse;
+  char **names;
   char *end, *fileName;
-  Matrix A;
+  Matrix *sample;
 
   if (argc < 3) {
     printf("Provide args: <filename> <window length> <number hidden units>");
@@ -125,13 +109,27 @@ int main(int argc, char *argv[]) {
 
   nUnits = strParse;
 
-  A = readDataFile(fileName);
-  freeMatrix(A);
+  sample = readDataFile(fileName, &nSeries, &names);
 
-  if (windowSize > A->rows - 1) {
-    printf("Length of the window is too large.");
-    exit(EXIT_FAILURE);
+  for (int i = 0; i < nSeries; i++) {
+    printf("%s\n", names[i]);
+    for (int r = 0; r < sample[i]->rows; r++) {
+      for (int c = 0; c < sample[i]->columns; c++) {
+        printf("%lf ", sample[i]->matrix[r][c]);
+      }
+      printf("\n");
+    }
   }
+
+  for (int i = 0; i < nSeries; i++) {
+    freeMatrix(sample[i]);
+  }
+  free(sample);
+
+  //if (windowSize > A->rows - 1) {
+  //  printf("Length of the window is too large.");
+  //  exit(EXIT_FAILURE);
+  //}
 
   return 0;
 }
