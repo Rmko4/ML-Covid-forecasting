@@ -6,6 +6,8 @@ import random
 import numpy as np
 
 import sys
+from math import log10
+import math as m
 
 
 CSV_PATH = Path("Data/COVID-19.csv")
@@ -158,6 +160,21 @@ def detrendOneCountry(deaths, cases, c, f):
     #plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
     #       ncol=2, mode="expand", borderaxespad=0.)
     #plt.show()
+
+    #Normalize data
+    for i in range(len(cases)):
+
+        if (deaths[i] > 1):
+            deaths[i] = m.pow(deaths[i],float(1)/3)
+        else:
+            deaths[i] = m.pow(abs(deaths[i]),float(1)/3) * -1
+
+        if (cases[i] > 1):
+            cases[i] = m.pow(cases[i],float(1)/3)
+        else:
+            cases[i] = m.pow(abs(cases[i]),float(1)/3) * -1
+
+
 
 
 
