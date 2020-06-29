@@ -131,7 +131,7 @@ void initWeight(Weight weight) {
 
 double sigmoid(double x) { return 1 / (1 + exp(-x)); }
 
-double dMSE(double y, double yhat) { return 2 * (yhat - y); }
+double dMSE(double yhat, double y) { return 2 * (yhat - y); }
 
 // Input and output linear apply no sigmoid
 double *forwardMLP(MLP model, double *u) {
@@ -183,7 +183,7 @@ double *forwardMLP(MLP model, double *u) {
   return x[layers - 1];
 }
 
-Weight backPropMLP(MLP model, double *yhat) {
+Weight backPropMLP(MLP model, double *y) {
   int layers, rows, columns, i, j, k;
   double *b, **x, **delta;
   Matrix W;
@@ -200,7 +200,7 @@ Weight backPropMLP(MLP model, double *yhat) {
   rows = W->rows;
   delta[k] = safeMalloc(rows * sizeof(double));
   for (i = 0; i < rows; i++) {
-    delta[k][i] = dMSE(x[k + 1][i], yhat[i]);
+    delta[k][i] = dMSE(x[k + 1][i], y[i]);
   }
 
   for (k = layers - 2; k > 0; k--) {
