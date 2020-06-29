@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define STRLEN 30
 #define DATELEN 9
@@ -15,15 +16,14 @@ typedef struct matrixstruct {
 
 typedef struct weightstruct {
   int layers; // Amount of layers in mlp
-  int *size;  // size per layer
   Matrix *W;  // Weights matrices
   double **b; // Bias vectors
-} Weight;
+} * Weight;
 
 typedef struct mlpstruct {
   double **x; // activation
   Weight weight;
-} MLP;
+} * MLP;
 
 void *safeMalloc(int n) {
   void *ptr = malloc(n);
@@ -46,35 +46,113 @@ Matrix makeMatrix(int r, int c) {
   return A;
 }
 
-MLP makeMLP(int layers, int *size) {
-  MLP model;
-  Weight weight;
-
-  weight = model.weight;
-  weight.layers = layers;
-  weight.size = size;
-
-  weight.W = safeMalloc((layers - 1) * sizeof(Matrix));
-  weight.b = safeMalloc((layers - 1) * sizeof(double));
-  model.x = safeMalloc(layers * sizeof(double));
-
-  // Weight layer k is at k - 1
-  for (int k = 0; k < layers - 1; k++) {
-    weight.W[k] = makeMatrix(size[k + 1], size[k]);
-    weight.b[k] = safeMalloc(size[k + 1]);
-    model.x = safeMalloc(size[k] * sizeof(double));
-  }
-  // Output layer activation units.
-  model.x = safeMalloc(size[layers - 1] * sizeof(double));
-}
-
 void freeMatrix(Matrix A) {
   free(A->matrix[0]);
   free(A->matrix);
   free(A);
 }
 
+double randRange(double min, double max) {
+  double div = RAND_MAX / (max - min);
+  return min + rand() / div;
+}
+
+MLP makeMLP(int layers, int *size) {
+  MLP model;
+  Weight weight;
+
+  weight->layers = layers;
+
+  weight->W = safeMalloc((layers - 1) * sizeof(Matrix));
+  weight->b = safeMalloc((layers - 1) * sizeof(double));
+  model->x = safeMalloc(layers * sizeof(double));
+
+  // Weight layer k is at k - 1
+  for (int k = 0; k < layers - 1; k++) {
+    weight->W[k] = makeMatrix(size[k + 1], size[k]);
+    weight->b[k] = safeMalloc(size[k + 1]);
+    model->x[k] = safeMalloc(size[k] * sizeof(double));
+  }
+  // Output layer activation units.
+  model->x[layers - 1] = safeMalloc(size[layers - 1] * sizeof(double));
+  model->weight = weight;
+}
+
 double sigmoid(double x) { return 1 / (1 + exp(-x)); }
+
+// Requires seeded rand.
+void initWeight(Weight weight) {
+  int layers;
+  int rows, columns;
+  Matrix W;
+  double *b;
+
+  layers = weight->layers;
+
+  for (int k = 0; k < layers - 1; k++) {
+    W = weight->W[k];
+    b = weight->b[k];
+    rows = W->rows;
+    columns = W->columns;
+
+    for (int i = 0; i < rows; i++) {
+      for (int j = 0; j < columns; j++) {
+        W->matrix[i][j] = randRange(-0.1, 0.1); // Change range
+      }
+      b[i] = 0;
+    }
+  }
+}
+
+// Input and output linear apply no sigmoid
+double *forwardMLP(MLP model, int *u) {
+  int layers, rows, columns, i, j, k;
+  double *b, **x;
+  Matrix W;
+  Weight weight;
+
+  weight = model->weight;
+  layers = weight->layers;
+  x = model->x;
+
+  // Set input layer with no function applied.
+  columns = weight->W[0]->columns;
+  for (int i = 0; i < columns; i++) {
+    x[0][i] = u[i];
+  }
+
+  // For every hidden layer (with sigmoid).
+  for (k = 0; k < layers - 2; k++) {
+    W = weight->W[k];
+    b = weight->b[k];
+    rows = W->rows;
+    columns = W->columns;
+
+    for (i = 0; i < rows; i++) {
+      x[k + 1][i] = b[i];
+      for (j = 0; j < columns; j++) {
+        x[k + 1][i] += W->matrix[i][j] * x[k][j];
+      }
+      x[k + 1][i] = sigmoid(x[k + 1][i]);
+    }
+  }
+
+  // Output layer (no function)
+  k = layers - 2;
+  W = weight->W[k];
+  b = weight->b[k];
+  rows = W->rows;
+  columns = W->columns;
+
+  for (i = 0; i < rows; i++) {
+    x[k + 1][i] = b[i];
+    for (j = 0; j < columns; j++) {
+      x[k + 1][i] += W->matrix[i][j] * x[k][j];
+    }
+  }
+
+  return x[layers - 1];
+}
 
 Matrix *readDataFile(char *fileName, int *nSeries, int *nVariate,
                      char ***names) {
@@ -132,7 +210,6 @@ int main(int argc, char *argv[]) {
   int windowSize, nSeries, nVariate;
   int size[LAYERS], nHiddenUnits;
   char *fileName, **names;
-
   Matrix *sample;
   MLP model;
 
@@ -144,6 +221,8 @@ int main(int argc, char *argv[]) {
   windowSize = intParse(argv[2]);
   nHiddenUnits = intParse(argv[3]);
 
+  srand(time(NULL));
+
   sample = readDataFile(fileName, &nSeries, &nVariate, &names);
 
   size[0] = nVariate * windowSize;
@@ -151,6 +230,7 @@ int main(int argc, char *argv[]) {
   size[2] = nVariate;
 
   model = makeMLP(LAYERS, size);
+  initWeight(model->weight);
 
   for (int i = 0; i < nSeries; i++) {
     freeMatrix(sample[i]);
