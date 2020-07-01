@@ -10,7 +10,6 @@
                 "-g",
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}",
-                "-O3",
                 "-lm"
             ],
             "options": {
