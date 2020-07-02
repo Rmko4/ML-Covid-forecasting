@@ -9,7 +9,7 @@
 #define STRLEN 30
 #define LAYERS 3
 #define MAXA 5E-4
-#define ITER 5000
+#define ITER 25000
 #define REGITER 1
 
 typedef struct matrixstruct {
@@ -515,23 +515,24 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int maxIter,
   // Gradient descent iterations
   initWeight(model->weight);
   for (n = 0; n < ITER; n++) {
-    if (n % 20 == 0) {
-      printf("Epoch: %d\n", n);
-      float risk;
-      for (j = 0; j < nSeries; j++) {
-        riskJ[j] = meanRisk(model, sample[j], window, nVariate);
-      }
+    // if (n % 20 == 0) {
+    // printf("Epoch: %d\n", n);
 
-      risk = mean(riskJ, nSeries);
-      printf(" - Training loss: %f - \n", risk);
-    }
+    //}
     setZeroWeight(gradient);
-    // shuffleSample(S, sampleSize);
+    shuffleSample(S, sampleSize);
     for (i = 0; i < sampleSize; i++) {
       forwardMLP(model, S[i]);
       backPropMLP(model, &S[i][nVariate * window], gradient);
     }
     addScaledWeight(weight, gradient, scaleGrad, scaleReg);
+    float risk;
+    for (j = 0; j < nSeries; j++) {
+      riskJ[j] = meanRisk(model, sample[j], window, nVariate);
+    }
+
+    risk = mean(riskJ, nSeries);
+    printf("%d %f - \n", n, risk);
   }
   float risk;
   for (j = 0; j < nSeries; j++) {
