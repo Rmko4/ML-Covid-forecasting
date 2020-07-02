@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}/${fileBasenameNoExtension}",
-            "args": ["Network/data_dummy.txt", "5", "6", "0.0001"],
+            "args": ["Network/data_all.txt", "30", "10", "0.1"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

@@ -1,16 +1,41 @@
-#include <errno.h>
-#include <float.h>
-#include <limits.h>
-#include <math.h>
+// The MIT License (MIT)
+
+// Copyright (c) 2020 Remco Leijenaar
+
+//  Permission is hereby granted, free of charge, to any person obtaining a
+//  copy of this software and associated documentation files (the "Software"),
+//  to deal in the Software without restriction, including without limitation
+//  the rights to use, copy, modify, merge, publish, distribute, sublicense,
+//  and/or sell copies of the Software, and to permit persons to whom the
+//  Software is furnished to do so, subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in
+//  all copies or substantial portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+//  OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+//  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+//  DEALINGS IN THE SOFTWARE.
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+
+#include <errno.h>  // errno
+#include <float.h>  // FLT_MAX
+#include <limits.h> // INT_MAX
+#include <math.h>   // sqrtf, exp
+#include <time.h>   // time
 
 #define STRLEN 30
 #define LAYERS 3
-#define MAXA 5E-4
-#define ITER 25000
-#define REGITER 1
+#define MAXA 0.01
+#define ITER 100
+#define REGITER 2
+#define TESTSIZE 7
+#define VALSIZE 14
 
 typedef struct matrixstruct {
   int rows, columns;
@@ -115,7 +140,7 @@ void initWeight(Weight weight) {
 }
 
 // Expects weights of equal size configuration.
-void addScaledWeight(Weight weightTo, Weight weightFrom, float a, float b) {
+void addScaledWeight(Weight weightTo, Weight weightFrom, float s) {
   int layers, rows, columns;
   Matrix WTo, WFrom;
   float *bTo, *bFrom;
@@ -132,9 +157,9 @@ void addScaledWeight(Weight weightTo, Weight weightFrom, float a, float b) {
 
     for (int i = 0; i < rows; i++) {
       for (int j = 0; j < columns; j++) {
-        WTo->matrix[i][j] += a * WFrom->matrix[i][j] - b * WTo->matrix[i][j];
+        WTo->matrix[i][j] += s * WFrom->matrix[i][j];
       }
-      bTo[i] += a * bFrom[i] - a * bTo[i];
+      bTo[i] += s * bFrom[i];
     }
   }
 }
@@ -238,30 +263,18 @@ void freeMLP(MLP model) {
   free(model);
 }
 
-float **flattenSample(Matrix *sample, int nSeries, int *len, int window,
-                      int outIdx) {
+float **flattenSample(Matrix *sample, int nSeries, int len, int *size) {
   int rows, n, t, i;
   float **flatSample;
 
   i = 0;
-  *len = -window * nSeries;
-  if (outIdx != -1) {
-    *len -= sample[outIdx]->rows - window;
-  }
+  flatSample = safeMalloc(len * sizeof(float *));
 
   for (n = 0; n < nSeries; n++) {
-    *len += sample[n]->rows;
-  }
-
-  flatSample = safeMalloc(*len * sizeof(float *));
-
-  for (n = 0; n < nSeries; n++) {
-    if (n != outIdx) {
-      rows = sample[n]->rows - (window);
-      for (t = 0; t < rows; t++) {
-        flatSample[i] = &sample[n]->matrix[t][0];
-        i++;
-      }
+    rows = size[n];
+    for (t = 0; t < rows; t++) {
+      flatSample[i] = &sample[n]->matrix[t][0];
+      i++;
     }
   }
 
@@ -370,7 +383,7 @@ float *forwardMLP(MLP model, float *u) {
   return x[layers - 1];
 }
 
-Weight backPropMLP(MLP model, float *y, Weight gradient) {
+void backPropMLP(MLP model, float *y, Weight gradient, float alpha) {
   int layers, rows, columns, i, j, k;
   float *b, **x, **delta;
   Matrix W;
@@ -415,7 +428,8 @@ Weight backPropMLP(MLP model, float *y, Weight gradient) {
     columns = W->columns;
     for (i = 0; i < rows; i++) {
       for (j = 0; j < columns; j++) {
-        W->matrix[i][j] += delta[k][i] * x[k][j];
+        W->matrix[i][j] +=
+            delta[k][i] * x[k][j] + 2 * alpha * alpha * W->matrix[i][j];
       }
       b[i] += delta[k][i];
     }
@@ -425,60 +439,72 @@ Weight backPropMLP(MLP model, float *y, Weight gradient) {
     free(delta[k]);
   }
   free(delta);
-  return gradient;
 }
 
-float meanRisk(MLP model, Matrix val, int window, int nVariate) {
-  int i, len;
+float riskMLP(MLP model, Matrix val, int start, int len, int window,
+              int nVariate) {
+  int i, end;
   float *yhat, risk;
 
-  // Matrix valJ = sample[j];
-  len = val->rows - window;
   risk = 0;
+  end = start + len;
   // Calculate validation risk on j.
-  for (i = 0; i < len; i++) {
+  for (i = start; i < end; i++) {
     yhat = forwardMLP(model, val->matrix[i]);
     risk += MSE(yhat, val->matrix[i + window], nVariate);
   }
   risk /= len;
+  return risk;
 }
 
-void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int maxIter,
-              float mu) {
-  float upA, maxA, a;
+void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
+              int valSize, int maxIter, float mu) {
+  float upA, maxA, alpha;
   float *b, **x, **delta, **S;
-  float *riskR, *riskJ;
-  float scaleGrad, scaleReg;
-  int layers, rows, columns, sampleSize;
-  int nVariate, r, i, j, n;
-  Matrix W;
+  float *riskRTrain, *riskRVal, *riskJTrain, *riskJVal;
+  float scaleGrad, risk;
+  int layers, rows, columns;
+  int sampleSize, *size;
+  int reserve, nVariate, r, i, j, n;
   Weight weight, gradient;
 
   weight = model->weight;
   layers = weight->layers;
   x = model->x;
   nVariate = weight->size[layers - 1];
+  reserve = window + testSize;
 
   gradient = makeWeight(layers, weight->size);
-  riskR = safeMalloc(REGITER * sizeof(float)); // MaxIter is now the same.
-  riskJ = safeMalloc(maxIter * sizeof(float));
+  size = safeMalloc(nSeries * sizeof(int));
 
-  maxA = sqrt(MAXA);
+  riskJTrain = safeMalloc(nSeries * sizeof(float));
+  riskJVal = safeMalloc(nSeries * sizeof(float));
+  riskRTrain = safeMalloc(REGITER * sizeof(float));
+  riskRVal = safeMalloc(REGITER * sizeof(float));
+
+  sampleSize = -valSize;
+  for (int i = 0; i < nSeries; i++) {
+    size[i] = sample[i]->rows - reserve;
+    sampleSize += size[i];
+  }
+
+  maxA = sqrtf(MAXA);
   upA = maxA / REGITER;
-  a = 0;
+  alpha = 0;
 
   // Iterating over degrees of flexibility r
   // r represents linear increases log alpha
-  /*for (r = 0; r < REGITER; r++) {
-    printf("\n###################################\n");
-    printf("Regularization - ALPHA^2: = %.3e\n", a * a);
+  for (r = 0; r < REGITER; r++) {
+    printf("\n#####################################\n");
+    printf("Regularization - ALPHA^2: = %.3e\n", alpha * alpha);
     printf("#####################################\n");
-    // Every iteration leave out one complete series.
-    for (j = 0; j < nSeries; j++) {
+    // Every iteration leave out part of one series.
+    for (j = 0; j < 1; j++) {
       printf("## Fold - K: %d\n", j);
-      S = flattenSample(sample, nSeries, &sampleSize, window, j);
+      size[j] -= valSize;
       scaleGrad = -mu / sampleSize;
-      scaleReg = -2 * a * a;
+      S = flattenSample(sample, nSeries, sampleSize, size);
+
       // Gradient descent iterations
       initWeight(model->weight);
       for (n = 0; n < ITER; n++) {
@@ -487,64 +513,81 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int maxIter,
         shuffleSample(S, sampleSize);
         for (i = 0; i < sampleSize; i++) {
           forwardMLP(model, S[i]);
-          backPropMLP(model, &S[i][nVariate * window], gradient);
+          backPropMLP(model, &S[i][nVariate * window], gradient, alpha);
         }
-        addScaledWeight(weight, gradient, scaleGrad, scaleReg);
-      }
+        addScaledWeight(weight, gradient, scaleGrad);
 
-      riskJ[j] = meanRisk(model, sample[j], window, nVariate);
+        risk = 0;
+        for (i = 0; i < nSeries; i++) {
+          risk += riskMLP(model, sample[i], 0, size[i], window, nVariate);
+        }
+        risk /= nSeries;
+        
+        printf(" - Training loss Epoch %d: %f - \n", n, risk);
+      }
+      // Training loss
+      riskJTrain[j] = 0;
+      for (i = 0; i < nSeries; i++) {
+        riskJTrain[j] +=
+            riskMLP(model, sample[i], 0, size[i], window, nVariate);
+      }
+      riskJTrain[j] /= nSeries;
+
+      // Validation loss
+      riskJVal[j] =
+          riskMLP(model, sample[j], size[j], valSize, window, nVariate);
+      size[j] += valSize;
+      printf(" - Training loss Fold %d: %f - \n", j, riskJTrain[j]);
+      printf(" - Validation loss Fold %d: %f - \n", j, riskJVal[j]);
+
       free(S);
     }
 
     // Calculate average risk for regularization r
-    riskR[r] = mean(riskJ, nSeries);
+    riskRTrain[r] = mean(riskJTrain, 1);
+    riskRVal[r] = mean(riskJVal, 1);
 
-    printf(" - Average risk: %f - \n", riskR[r]);
-    a += upA; // Increase the log alpha
-  }*/
+    printf(" - Average Training loss: %f - \n", riskRTrain[r]);
+    printf(" - Average Validation loss: %f - \n", riskRVal[r]);
+    alpha += upA;
+  }
 
-  // r = argmin(riskR, REGITER); // regularization with minimum average risk
-  // a = r * upA;
+  r = argmin(riskRVal, REGITER); // regularization with minimum average risk
+  alpha = r * upA;
 
   printf("\n\n\n");
-  printf("Best regularization - ALPHA^2: = %.3e\n", a * a);
-  printf("Train on full data set...\n\n");
-  S = flattenSample(sample, nSeries, &sampleSize, window, -1);
+  printf("Best regularization - ALPHA^2: = %.3e\n", alpha * alpha);
+  printf("Train on full training set...\n\n");
+
+  sampleSize += valSize;
   scaleGrad = -mu / sampleSize;
-  scaleReg = -2 * a * a;
+  S = flattenSample(sample, nSeries, sampleSize, size);
+
   // Gradient descent iterations
   initWeight(model->weight);
   for (n = 0; n < ITER; n++) {
-    // if (n % 20 == 0) {
-    // printf("Epoch: %d\n", n);
-
-    //}
     setZeroWeight(gradient);
     shuffleSample(S, sampleSize);
     for (i = 0; i < sampleSize; i++) {
       forwardMLP(model, S[i]);
-      backPropMLP(model, &S[i][nVariate * window], gradient);
+      backPropMLP(model, &S[i][nVariate * window], gradient, alpha);
     }
-    addScaledWeight(weight, gradient, scaleGrad, scaleReg);
-    float risk;
-    for (j = 0; j < nSeries; j++) {
-      riskJ[j] = meanRisk(model, sample[j], window, nVariate);
-    }
-
-    risk = mean(riskJ, nSeries);
-    printf("%d %f - \n", n, risk);
-  }
-  float risk;
-  for (j = 0; j < nSeries; j++) {
-    riskJ[j] = meanRisk(model, sample[j], window, nVariate);
+    addScaledWeight(weight, gradient, scaleGrad);
   }
 
-  risk = mean(riskJ, nSeries);
-  printf(" - Training loss: %f - \n", risk);
+  risk = 0;
+  for (i = 0; i < nSeries; i++) {
+    risk += riskMLP(model, sample[i], size[i], testSize, window, nVariate);
+  }
+  risk /= nSeries;
+
+  printf(" - Final Testing loss: %f - \n", risk);
 
   freeWeight(gradient);
-  free(riskR);
-  free(riskJ);
+  free(riskRTrain);
+  free(riskJTrain);
+  free(riskRVal);
+  free(riskJVal);
   free(S);
 }
 
@@ -643,20 +686,28 @@ int main(int argc, char *argv[]) {
 
   model = makeMLP(LAYERS, size);
 
-  trainMLP(model, sample, nSeries, windowSize, ITER, mu);
-  // Implement variable learning rate
+  trainMLP(model, sample, nSeries, windowSize, TESTSIZE, VALSIZE, ITER, mu);
 
+  int i, j, k, start, end;
   float *yhat;
-  for (int j = 0; j < sample[0]->rows - windowSize; j++) {
-    yhat = forwardMLP(model, sample[0]->matrix[j]);
-    for (int i = 0; i < nVariate; i++) {
-      printf("yhat: %.5f --- y: %.5f\n", yhat[i],
-             sample[0]->matrix[j + windowSize][i]);
+
+  /*printf("\nPredictions on testing set:\n");
+  for (i = 0; i < nSeries; i++) {
+    printf("%s:\n", names[i]);
+    start = sample[i]->rows - windowSize - TESTSIZE;
+    end = start + TESTSIZE;
+    for (j = start; j < end; j++) {
+      yhat = forwardMLP(model, sample[i]->matrix[j]);
+      for (k = 0; k < nVariate; k++) {
+        printf("yhat: %.5f --- y: %.5f\n", yhat[k],
+               sample[i]->matrix[j + windowSize][k]);
+      }
+      printf("\n");
     }
     printf("\n");
   }
 
-  printWeight(model->weight);
+  printWeight(model->weight);*/
 
   for (int i = 0; i < nSeries; i++) {
     freeMatrix(sample[i]);
