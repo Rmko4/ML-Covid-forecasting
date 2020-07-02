@@ -31,9 +31,9 @@
 
 #define STRLEN 30
 #define LAYERS 3
-#define MAXA 0.01
-#define ITER 100
-#define REGITER 2
+#define MAXA 0.5
+#define ITER 5000
+#define REGITER 20
 #define TESTSIZE 7
 #define VALSIZE 14
 
@@ -132,7 +132,7 @@ void initWeight(Weight weight) {
     }
     for (int i = 0; i < rows; i++) {
       for (int j = 0; j < columns; j++) {
-        W->matrix[i][j] = randRange(-range, range); // Change range
+        W->matrix[i][j] = randRange(-0.0001, 0.0001); // Change range
       }
       b[i] = 0;
     }
@@ -386,7 +386,7 @@ float *forwardMLP(MLP model, float *u) {
 void backPropMLP(MLP model, float *y, Weight gradient, float alpha) {
   int layers, rows, columns, i, j, k;
   float *b, **x, **delta;
-  Matrix W;
+  Matrix W, G;
   Weight weight;
 
   weight = model->weight;
@@ -422,14 +422,14 @@ void backPropMLP(MLP model, float *y, Weight gradient, float alpha) {
 
   // Calculating final gradient
   for (k = 0; k < layers - 1; k++) {
-    W = gradient->W[k];
+    W = weight->W[k];
+    G = gradient->W[k];
     b = gradient->b[k];
-    rows = W->rows;
-    columns = W->columns;
+    rows = G->rows;
+    columns = G->columns;
     for (i = 0; i < rows; i++) {
       for (j = 0; j < columns; j++) {
-        W->matrix[i][j] +=
-            delta[k][i] * x[k][j] + 2 * alpha * alpha * W->matrix[i][j];
+        G->matrix[i][j] += delta[k][i] * x[k][j] + 2 * alpha * W->matrix[i][j];
       }
       b[i] += delta[k][i];
     }
@@ -488,9 +488,9 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
     sampleSize += size[i];
   }
 
-  maxA = sqrtf(MAXA);
+  maxA = MAXA;
   upA = maxA / REGITER;
-  alpha = 0;
+  alpha = 0; // CHANGE BACK LATER TO 0
 
   // Iterating over degrees of flexibility r
   // r represents linear increases log alpha
@@ -517,13 +517,13 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
         }
         addScaledWeight(weight, gradient, scaleGrad);
 
-        risk = 0;
+        /*risk = 0;
         for (i = 0; i < nSeries; i++) {
           risk += riskMLP(model, sample[i], 0, size[i], window, nVariate);
         }
         risk /= nSeries;
-        
-        printf(" - Training loss Epoch %d: %f - \n", n, risk);
+
+        printf(" - Training loss Epoch %d: %f - \n", n, risk);*/
       }
       // Training loss
       riskJTrain[j] = 0;
@@ -545,7 +545,7 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
 
     // Calculate average risk for regularization r
     riskRTrain[r] = mean(riskJTrain, 1);
-    riskRVal[r] = mean(riskJVal, 1);
+    riskRVal[r] = mean(riskJVal, 1); // CHANGE BACK to nSeries
 
     printf(" - Average Training loss: %f - \n", riskRTrain[r]);
     printf(" - Average Validation loss: %f - \n", riskRVal[r]);
@@ -691,7 +691,7 @@ int main(int argc, char *argv[]) {
   int i, j, k, start, end;
   float *yhat;
 
-  /*printf("\nPredictions on testing set:\n");
+  printf("\nPredictions on testing set:\n");
   for (i = 0; i < nSeries; i++) {
     printf("%s:\n", names[i]);
     start = sample[i]->rows - windowSize - TESTSIZE;
@@ -706,8 +706,8 @@ int main(int argc, char *argv[]) {
     }
     printf("\n");
   }
-
-  printWeight(model->weight);*/
+  
+  printWeight(model->weight);
 
   for (int i = 0; i < nSeries; i++) {
     freeMatrix(sample[i]);
