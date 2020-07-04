@@ -10,7 +10,6 @@
                 "-g",
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}",
-                "-fopenmp",
                 "-lm"
             ],
             "options": {
