@@ -574,7 +574,7 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
   alpha = 0;
 
   // Iterating over degrees of flexibility r converted to a
-  for (r = 0; r < REGITER; r++) {
+  /*for (r = 0; r < REGITER; r++) {
     alpha = r * upA;
     // Every iteration leave out validation range of one series.
     for (j = 0; j < nSeries; j++) {
@@ -603,11 +603,11 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
     riskRTrain[r] = mean(riskJTrain, nSeries);
     riskRVal[r] = mean(riskJVal, nSeries);
     printf("%f %f %f\n", alpha, riskRTrain[r], riskRVal[r]);
-  }
+  }*/
 
   // regularization with minimum average validation loss
-  r = argmin(riskRVal, REGITER);
-  alpha = r * upA;
+  //r = argmin(riskRVal, REGITER);
+  alpha = 0.767677;
 
   printf("\n\n\n");
   printf("Best regularization - ALPHA = %f - ALPHA^2: = %f\n", alpha,
@@ -636,6 +636,44 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
   free(riskRVal);
   free(riskJVal);
   free(S);
+}
+
+Matrix *readDataFile(char *fileName, int *nSeries, int *nVariate,
+                     char ***names) {
+  int nTimeSteps;
+  Matrix *Sample;
+  FILE *fp;
+
+  fp = fopen(fileName, "r");
+
+  if (fp == NULL) {
+    perror("Error while opening the file.\n");
+    exit(EXIT_FAILURE);
+  }
+
+  fscanf(fp, "%d", nSeries);
+  fscanf(fp, "%d", nVariate);
+
+  *names = safeMalloc(*nSeries * sizeof(char *));
+  Sample = safeMalloc(*nSeries * sizeof(Matrix));
+
+  for (int i = 0; i < *nSeries; i++) {
+    (*names)[i] = safeMalloc(STRLEN * sizeof(char));
+    fscanf(fp, "%s", (*names)[i]);
+    fscanf(fp, "%d", &nTimeSteps);
+
+    Sample[i] = makeMatrix(nTimeSteps, *nVariate);
+
+    for (int r = 0; r < nTimeSteps; r++) {
+      for (int c = 0; c < *nVariate; c++) {
+        fscanf(fp, "%f", &(Sample[i]->matrix[r][c]));
+      }
+    }
+  }
+
+  fclose(fp);
+
+  return Sample;
 }
 
 int main(int argc, char *argv[]) {
@@ -680,6 +718,23 @@ int main(int argc, char *argv[]) {
       for (k = 0; k < nVariate; k++) {
         printf("yhat: %.5f --- y: %.5f\n", yhat[k],
                sample[i]->matrix[j + windowSize][k]);
+      }
+      printf("\n");
+    }
+    printf("\n");
+  }
+
+  printf("\nIterated Predictions:\n");
+  for (i = 0; i < nSeries; i++) {
+    printf("%s:\n", names[i]);
+    start = sample[i]->rows - windowSize - TESTSIZE;
+    end = start + TESTSIZE;
+    for (j = start; j < end; j++) {
+      yhat = forwardMLP(model, sample[i]->matrix[j]);
+      for (k = 0; k < nVariate; k++) {
+        printf("yhat: %.5f --- y: %.5f\n", yhat[k],
+               sample[i]->matrix[j + windowSize][k]);
+        sample[i]->matrix[j + windowSize][k] = yhat[k];
       }
       printf("\n");
     }
