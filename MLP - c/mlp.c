@@ -45,12 +45,12 @@ int intParse(char *arg);
 Matrix makeMatrix(int r, int c);
 void freeMatrix(Matrix A);
 Weight makeWeight(int layers, int *size);
-float l2Norm(Weight weight);
-void printWeight(Weight weight);
-void setZeroWeight(Weight weight);
-void addScaledWeight(Weight weightTo, Weight weightFrom, float s);
-void initWeight(Weight weight, float s);
 void freeWeight(Weight weight);
+void initWeight(Weight weight, float s);
+void setZeroWeight(Weight weight);
+float l2Norm(Weight weight);
+void addScaledWeight(Weight weightTo, Weight weightFrom, float s);
+void printWeight(Weight weight);
 
 MLP makeMLP(int layers, int *size);
 void freeMLP(MLP model);
@@ -71,6 +71,9 @@ float sigmoid(float x);
 float randRange(float min, float max);
 void shuffleSample(float **a, int len);
 float **flattenSample(Matrix *sample, int nSeries, int len, int *size);
+Matrix *readDataFile(char *fileName, int *nSeries, int *nVariate,
+                     char ***names);
+
 // ****** End references ******
 
 void *safeMalloc(int n) {
@@ -82,9 +85,32 @@ void *safeMalloc(int n) {
   return ptr;
 }
 
-float randRange(float min, float max) {
-  float div = RAND_MAX / (max - min);
-  return min + rand() / div;
+int intParse(char *arg) {
+  char *end;
+  long strParse;
+
+  strParse = strtol(arg, &end, 10);
+  errno = 0;
+
+  if (errno != 0 || *end != '\0' || strParse > INT_MAX) {
+    perror("Error while converting arg.\n");
+    exit(EXIT_FAILURE);
+  }
+  return (int)strParse;
+}
+
+float floatParse(char *arg) {
+  char *end;
+  float strParse;
+
+  strParse = strtof(arg, &end);
+  errno = 0;
+
+  if (errno != 0 || *end != '\0') {
+    perror("Error while converting arg.\n");
+    exit(EXIT_FAILURE);
+  }
+  return strParse;
 }
 
 Matrix makeMatrix(int r, int c) {
@@ -158,6 +184,56 @@ void initWeight(Weight weight, float s) {
   }
 }
 
+void setZeroWeight(Weight weight) {
+  int layers;
+  int rows, columns;
+  Matrix W;
+  float *b;
+
+  layers = weight->layers;
+
+  for (int k = 0; k < layers - 1; k++) {
+    W = weight->W[k];
+    b = weight->b[k];
+    rows = W->rows;
+    columns = W->columns;
+
+    for (int i = 0; i < rows; i++) {
+      for (int j = 0; j < columns; j++) {
+        W->matrix[i][j] = 0;
+      }
+      b[i] = 0;
+    }
+  }
+}
+
+// Unused
+float l2Norm(Weight weight) {
+  int layers;
+  int rows, columns;
+  Matrix W;
+  float *b, l2n;
+
+  layers = weight->layers;
+  l2n = 0;
+
+  for (int k = 0; k < layers - 1; k++) {
+    W = weight->W[k];
+    b = weight->b[k];
+    rows = W->rows;
+    columns = W->columns;
+
+    for (int i = 0; i < rows; i++) {
+      for (int j = 0; j < columns; j++) {
+        l2n += W->matrix[i][j] * W->matrix[i][j];
+      }
+      l2n += b[i] * b[i];
+    }
+  }
+
+  return l2n;
+}
+
 // Expects weights of equal size configuration.
 void addScaledWeight(Weight weightTo, Weight weightFrom, float s) {
   int layers, rows, columns;
@@ -179,29 +255,6 @@ void addScaledWeight(Weight weightTo, Weight weightFrom, float s) {
         WTo->matrix[i][j] += s * WFrom->matrix[i][j];
       }
       bTo[i] += s * bFrom[i];
-    }
-  }
-}
-
-void setZeroWeight(Weight weight) {
-  int layers;
-  int rows, columns;
-  Matrix W;
-  float *b;
-
-  layers = weight->layers;
-
-  for (int k = 0; k < layers - 1; k++) {
-    W = weight->W[k];
-    b = weight->b[k];
-    rows = W->rows;
-    columns = W->columns;
-
-    for (int i = 0; i < rows; i++) {
-      for (int j = 0; j < columns; j++) {
-        W->matrix[i][j] = 0;
-      }
-      b[i] = 0;
     }
   }
 }
@@ -235,33 +288,6 @@ void printWeight(Weight weight) {
   }
 }
 
-// Unused
-float l2Norm(Weight weight) {
-  int layers;
-  int rows, columns;
-  Matrix W;
-  float *b, l2n;
-
-  layers = weight->layers;
-  l2n = 0;
-
-  for (int k = 0; k < layers - 1; k++) {
-    W = weight->W[k];
-    b = weight->b[k];
-    rows = W->rows;
-    columns = W->columns;
-
-    for (int i = 0; i < rows; i++) {
-      for (int j = 0; j < columns; j++) {
-        l2n += W->matrix[i][j] * W->matrix[i][j];
-      }
-      l2n += b[i] * b[i];
-    }
-  }
-
-  return l2n;
-}
-
 MLP makeMLP(int layers, int *size) {
   MLP model = safeMalloc(sizeof(struct mlpstruct));
   model->weight = makeWeight(layers, size);
@@ -281,6 +307,11 @@ void freeMLP(MLP model) {
   free(model->x);
   freeWeight(model->weight);
   free(model);
+}
+
+float randRange(float min, float max) {
+  float div = RAND_MAX / (max - min);
+  return min + rand() / div;
 }
 
 // Expects len > 1
@@ -509,7 +540,6 @@ void gradDescentMLP(MLP model, Weight gradient, float **S, int epochs,
   }
 }
 
-//
 void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
               int valSize, int epochs, float mu) {
   float *riskRTrain, *riskRVal, *riskJTrain, *riskJVal;
@@ -606,72 +636,6 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
   free(riskRVal);
   free(riskJVal);
   free(S);
-}
-
-Matrix *readDataFile(char *fileName, int *nSeries, int *nVariate,
-                     char ***names) {
-  int nTimeSteps;
-  Matrix *Sample;
-  FILE *fp;
-
-  fp = fopen(fileName, "r");
-
-  if (fp == NULL) {
-    perror("Error while opening the file.\n");
-    exit(EXIT_FAILURE);
-  }
-
-  fscanf(fp, "%d", nSeries);
-  fscanf(fp, "%d", nVariate);
-
-  *names = safeMalloc(*nSeries * sizeof(char *));
-  Sample = safeMalloc(*nSeries * sizeof(Matrix));
-
-  for (int i = 0; i < *nSeries; i++) {
-    (*names)[i] = safeMalloc(STRLEN * sizeof(char));
-    fscanf(fp, "%s", (*names)[i]);
-    fscanf(fp, "%d", &nTimeSteps);
-
-    Sample[i] = makeMatrix(nTimeSteps, *nVariate);
-
-    for (int r = 0; r < nTimeSteps; r++) {
-      for (int c = 0; c < *nVariate; c++) {
-        fscanf(fp, "%f", &(Sample[i]->matrix[r][c]));
-      }
-    }
-  }
-
-  fclose(fp);
-
-  return Sample;
-}
-
-int intParse(char *arg) {
-  char *end;
-  long strParse;
-
-  strParse = strtol(arg, &end, 10);
-  errno = 0;
-
-  if (errno != 0 || *end != '\0' || strParse > INT_MAX) {
-    perror("Error while converting arg.\n");
-    exit(EXIT_FAILURE);
-  }
-  return (int)strParse;
-}
-
-float floatParse(char *arg) {
-  char *end;
-  float strParse;
-
-  strParse = strtof(arg, &end);
-  errno = 0;
-
-  if (errno != 0 || *end != '\0') {
-    perror("Error while converting arg.\n");
-    exit(EXIT_FAILURE);
-  }
-  return strParse;
 }
 
 int main(int argc, char *argv[]) {
