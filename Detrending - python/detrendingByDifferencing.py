@@ -5,8 +5,13 @@ import pandas as pd
 import random
 import numpy as np
 
+import sys
+from math import log10
+import math as m
+
 
 CSV_PATH = Path("Data/COVID-19.csv")
+
 
 
 def get_data(path):
@@ -30,84 +35,140 @@ def get_data(path):
 def unpackData(data, country):
     deaths = []
     cases  = []
+    casesReached100 = False
     for c, df_country in data:
         if c == country:
+            
             for i in range(len(df_country.cases.values)):
-                deaths.append(df_country.deaths.values[i])
+                if (not casesReached100):
+                    if (df_country.cases.values[i] >= 100):
+                        casesReached100 = True
+                    else:
+                        continue
                 cases.append(df_country.cases.values[i])
+                deaths.append(df_country.deaths.values[i])
 
     return deaths, cases
 
 
-def trendWeekdays(data):
 
-    model = [0 for i in range(7)]
+def detrendWeekdays(data):
+    averageDay = 0
+    model = [1 for i in range(7)]
     numberDatapoints = [0 for i in range(7)]
 
     for i in range(len(data)):
+        averageDay += data[i]
         model[(i % 7)] += data[i]
         numberDatapoints[(i % 7)] +=1
     
 
+    averageDay /= len(data)
+
     for i in range(7):
         model[i] = model[i] / numberDatapoints[i]
+        model[i] =  averageDay / model[i]
 
-    trend =[]
     for i in range(len(data)):
-        trend.append(data[i] - model[(i % 7)])
+        data[i] = data[i] * model[(i % 7)]
 
-    return model, trend
+    return model, data
 
 
-def removeTrendFromData(data, trend):
-    newData = []
-    for i in range(len(data)):
-        newData.append(data[i] - trend[i])
+
+def removeTrendFromData(x,y):
+    for i in range(len(x)):
+        x[i] = x[i] - y[i]
+    return x
+
+def detrendByDifferencing(data):
+    newData = [0 for i in range(len(data)-1)]
+    for i in range(len(data)-1):
+        newData[i] = data[i+1] - data[i]
     return newData
 
-def detrendByDifferences(data):
-    differenceData = []
-    for i in range(len(data) -1):
-        differenceData.append(data[i] - data[i+1])
-    return differenceData
 
 def main():
+
+
     data = get_data(CSV_PATH)
 
-    #make deaths and cases simple arrays
-    deaths, cases = unpackData(data, "Germany")
 
-    #show original data
-    plt.plot(deaths)
-    plt.plot(cases)
-    plt.show()
+    f = open("detrendedDataAllCountries", "w")
 
+    f.write("XXX 2\n")
 
+    i = 0
 
-    deathsDifferences = detrendByDifferences(deaths)
-    casesDifferences = detrendByDifferences(cases)
+    for c, df_country in data:
+        deaths, cases = unpackData(data, "Netherlands")
 
-    #show differences without weekly detrending
-    plt.plot(deathsDifferences)
-    plt.plot(casesDifferences)
-    plt.show()
+        if (len(cases) < 31):
+            continue
+    
 
+        if (detrendOneCountry(deaths, cases, "Netherlands", f)):
+            i+=1
 
-    #removes weekly oscillation of data. The model contains the average difference each weekday. 
-    modelWeekdaysDeaths,  trendWeekDeaths= trendWeekdays(deathsDifferences)
-    modelWeekdaysCases, trendWeekCases = trendWeekdays(deathsDifferences)
+    print(i)
+    
+    f.close()
 
+def confirm():
+    x = input()
+    if (x != ''):
+        return False
+    return True
 
-    detrendedDeaths = removeTrendFromData(deathsDifferences, trendWeekDeaths)
-    detrendedCases = removeTrendFromData(casesDifferences, trendWeekCases)
-
-
-    #show detrended data
-    plt.plot(detrendedCases, label = "random noise left after detrending cases" )
-    plt.plot(detrendedDeaths, label = "random noise left after detrending deaths" )
+def plotData(data1, description1, data2, description2):
+    plt.plot(data1, label = description1)
+    plt.plot(data2, label = description2)
     plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
            ncol=2, mode="expand", borderaxespad=0.)
     plt.show()
+
+
+def detrendOneCountry(deaths, cases, c, f):
+
+    plotData(deaths, "originalDeaths", cases, "originalCases")
+
+
+    if (not confirm()):
+        print("data not used")
+        return False
+
+
+    #removes weekly oscillation of data. The model contains the average proportion of cases at a specific weekday compard to the average. 
+    modelWeekdaysCases, cases = detrendWeekdays(cases)
+
+
+
+    #creates a trend using a polynominal function of the given order. The model contain the polynomial coefficients, highest power first.
+    deaths = detrendByDifferencing(deaths)
+    cases = detrendByDifferencing(cases)
+
+
+    #Normalize data
+    for i in range(len(cases)):
+
+        if (deaths[i] > 1):
+            deaths[i] = m.pow(deaths[i],float(1)/3)
+        else:
+            deaths[i] = m.pow(abs(deaths[i]),float(1)/3) * -1
+
+        if (cases[i] > 1):
+            cases[i] = m.pow(cases[i],float(1)/3)
+        else:
+            cases[i] = m.pow(abs(cases[i]),float(1)/3) * -1
+
+
+    f.write(c + " " + str(len(cases)) + "\n")
+
+    for i in range(len(cases)):
+        f.write(str(deaths[i]) + " " + str(cases[i])+ "\n")
+
+    print("Data is used")
+    return True
 
 
 if __name__ == "__main__":
