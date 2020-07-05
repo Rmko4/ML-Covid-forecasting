@@ -574,7 +574,7 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
   alpha = 0;
 
   // Iterating over degrees of flexibility r converted to a
-  /*for (r = 0; r < REGITER; r++) {
+  for (r = 0; r < REGITER; r++) {
     alpha = r * upA;
     // Every iteration leave out validation range of one series.
     for (j = 0; j < nSeries; j++) {
@@ -603,11 +603,11 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
     riskRTrain[r] = mean(riskJTrain, nSeries);
     riskRVal[r] = mean(riskJVal, nSeries);
     printf("%f %f %f\n", alpha, riskRTrain[r], riskRVal[r]);
-  }*/
+  }
 
   // regularization with minimum average validation loss
-  //r = argmin(riskRVal, REGITER);
-  alpha = 0.767677;
+  r = argmin(riskRVal, REGITER);
+  alpha = r * upA;
 
   printf("\n\n\n");
   printf("Best regularization - ALPHA = %f - ALPHA^2: = %f\n", alpha,
