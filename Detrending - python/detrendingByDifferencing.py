@@ -101,13 +101,13 @@ def main():
     i = 0
 
     for c, df_country in data:
-        deaths, cases = unpackData(data, "Netherlands")
+        deaths, cases = unpackData(data, c)
 
         if (len(cases) < 31):
             continue
     
 
-        if (detrendOneCountry(deaths, cases, "Netherlands", f)):
+        if (detrendOneCountry(deaths, cases, c, f)):
             i+=1
 
     print(i)
