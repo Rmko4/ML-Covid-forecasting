@@ -18,7 +18,7 @@
 
 #define TESTSIZE 7 // Test size
 #define VALSIZE 14 // Validation size
-#define INSCALE 5
+#define INSCALE 4
 
 typedef struct matrixstruct {
   int rows, columns;
@@ -529,6 +529,7 @@ void gradDescentMLP(MLP model, Weight gradient, float **S, int epochs,
     }
     addScaledWeight(model->weight, gradient, scaleGrad);
 #if DEBUG
+    // Currently no access to variables
     risk = 0;
     for (i = 0; i < nSeries; i++) {
       risk += riskMLP(model, sample[i], 0, size[i], window, nVariate);
@@ -577,7 +578,7 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
   for (r = 0; r < REGITER; r++) {
     alpha = r * upA;
     // Every iteration leave out validation range of one series.
-    for (j = 0; j < nSeries; j++) {
+    for (j = 0; j < 1; j++) {
       size[j] -= valSize;
       scaleGrad = -mu / sampleSize;
       S = flattenSample(sample, nSeries, sampleSize, size);
