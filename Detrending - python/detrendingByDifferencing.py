@@ -101,9 +101,10 @@ def main():
     i = 0
 
     for c, df_country in data:
+        
         deaths, cases = unpackData(data, c)
 
-        if (len(cases) < 31):
+        if (len(cases) < 51):
             continue
     
 
@@ -130,6 +131,8 @@ def plotData(data1, description1, data2, description2):
 
 def detrendOneCountry(deaths, cases, c, f):
 
+    print(c)
+
     plotData(deaths, "originalDeaths", cases, "originalCases")
 
 
@@ -137,6 +140,7 @@ def detrendOneCountry(deaths, cases, c, f):
         print("data not used")
         return False
 
+    print("1")
 
     #removes weekly oscillation of data. The model contains the average proportion of cases at a specific weekday compard to the average. 
     modelWeekdaysCases, cases = detrendWeekdays(cases)
@@ -147,6 +151,7 @@ def detrendOneCountry(deaths, cases, c, f):
     deaths = detrendByDifferencing(deaths)
     cases = detrendByDifferencing(cases)
 
+    print("2")
 
     #Normalize data
     for i in range(len(cases)):
@@ -160,6 +165,8 @@ def detrendOneCountry(deaths, cases, c, f):
             cases[i] = m.pow(cases[i],float(1)/3)
         else:
             cases[i] = m.pow(abs(cases[i]),float(1)/3) * -1
+
+    print("3")
 
 
     f.write(c + " " + str(len(cases)) + "\n")
