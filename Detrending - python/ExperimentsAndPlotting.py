@@ -8,9 +8,12 @@ import numpy as np
 import sys
 from math import log10
 import math as m
+import copy
 
 
 CSV_PATH = Path("Data/COVID-19.csv")
+
+c = "Netherlands"
 
 
 
@@ -96,52 +99,62 @@ def main():
 
     f = open("detrendedDataAllCountries", "w")
 
-    f.write("XXX 2\n")
 
-    i = 0
+    deaths, cases = unpackData(data, c)
 
-    for c, df_country in data:
-        deaths, cases = unpackData(data, c)
+    if (detrendOneCountry(deaths, cases, c, f)):
+        pass
 
-        if (len(cases) < 31):
-            continue
-    
 
-        if (detrendOneCountry(deaths, cases, c, f)):
-            i+=1
-
-    print(i)
-    
-    f.close()
 
 def confirm():
     x = input()
     if (x != ''):
         return False
-    return True
-
-def plotData(data1, description1, data2, description2):
-    plt.plot(data1, label = description1)
-    plt.plot(data2, label = description2)
-    plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
-           ncol=2, mode="expand", borderaxespad=0.)
-    plt.show()
+    return True    
 
 
 def detrendOneCountry(deaths, cases, c, f):
 
-    plotData(deaths, "originalDeaths", cases, "originalCases")
-
-
-    if (not confirm()):
-        print("data not used")
-        return False
-
+    originalCases = copy.deepcopy(cases)
 
     #removes weekly oscillation of data. The model contains the average proportion of cases at a specific weekday compard to the average. 
     modelWeekdaysCases, cases = detrendWeekdays(cases)
 
 
+    #hardcoded network predictionsCases for cases in last week
+    predictionsCases = [-1.0420738879899365,-3.9517415810788954,-1.1247763136027755,1.0884700737172943,4.361970671390499,-4.335629011549036,3.904607228327681]
+
+    for i in range(len(predictionsCases)):
+        predictionsCases[i] = predictionsCases[i]**3
+
+    predictionsCases[0] =  predictionsCases[0] + cases[-8]
+    
+    for i in range(1,7):
+        predictionsCases[i] = predictionsCases[i-1] + predictionsCases[i]
+
+    for i in range(len(predictionsCases)):
+        predictionsCases[i] = predictionsCases[i] / modelWeekdaysCases[(len(originalCases) -7 + i ) %7]
+
+
+
+    print(predictionsCases)
+    print(originalCases)
+
+    t1 = [x for x in range(len(cases) -30, len(cases))]
+    t2 = [len(cases)-7 + x for x in range(7)]
+
+    plt.plot(t1, originalCases[-30:], label = 'real data') 
+    plt.plot(t2, predictionsCases, label = 'mlp predictionsCases')
+    plt.legend()
+    plt.xlabel("days since outbreak")
+    plt.ylabel("number of new cases")
+    plt.title("Mlp predictions for cases in " + c)
+
+    plt.show()
+
+
+    input()
 
     #detrend by differencing
     deaths = detrendByDifferencing(deaths)
