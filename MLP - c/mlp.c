@@ -14,7 +14,7 @@
 #define STRLEN 30
 #define LAYERS 3
 #define MAXA 1
-#define REGITER 1
+#define REGITER 100
 
 #define TESTSIZE 7 // Test size
 #define VALSIZE 14 // Validation size
@@ -571,14 +571,13 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
   }
 
   maxA = MAXA;
-  upA = REGITER > 1 ? maxA / (REGITER - 1) : 0;
-  alpha = 0;
+  upA = maxA / REGITER;
 
   // Iterating over degrees of flexibility r converted to a
   for (r = 0; r < REGITER; r++) {
     alpha = r * upA;
     // Every iteration leave out validation range of one series.
-    for (j = 0; j < 1; j++) {
+    for (j = 0; j < nSeries; j++) {
       size[j] -= valSize;
       scaleGrad = -mu / sampleSize;
       S = flattenSample(sample, nSeries, sampleSize, size);
@@ -705,7 +704,7 @@ int main(int argc, char *argv[]) {
   size[0] = nVariate * windowSize;
   size[1] = nHiddenUnits;
   size[2] = nVariate;
-
+  char *df = names[31];
   model = makeMLP(LAYERS, size);
   trainMLP(model, sample, nSeries, windowSize, TESTSIZE, VALSIZE, epochs, mu);
 
