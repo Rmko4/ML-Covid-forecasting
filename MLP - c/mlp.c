@@ -14,7 +14,7 @@
 #define STRLEN 30
 #define LAYERS 3
 #define MAXA 1
-#define REGITER 1
+#define REGITER 100
 
 #define TESTSIZE 7 // Test size
 #define VALSIZE 14 // Validation size
@@ -571,14 +571,13 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
   }
 
   maxA = MAXA;
-  upA = REGITER > 1 ? maxA / (REGITER - 1) : 0;
-  alpha = 0;
+  upA = maxA / REGITER;
 
   // Iterating over degrees of flexibility r converted to a
-  /*for (r = 0; r < REGITER; r++) {
+  for (r = 0; r < REGITER; r++) {
     alpha = r * upA;
     // Every iteration leave out validation range of one series.
-    for (j = 0; j < 1; j++) {
+    for (j = 0; j < nSeries; j++) {
       size[j] -= valSize;
       scaleGrad = -mu / sampleSize;
       S = flattenSample(sample, nSeries, sampleSize, size);
@@ -604,11 +603,11 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
     riskRTrain[r] = mean(riskJTrain, nSeries);
     riskRVal[r] = mean(riskJVal, nSeries);
     printf("%f %f %f\n", alpha, riskRTrain[r], riskRVal[r]);
-  }*/
+  }
 
   // regularization with minimum average validation loss
-  //r = argmin(riskRVal, REGITER);
-  alpha = 0.767677;
+  r = argmin(riskRVal, REGITER);
+  alpha = r * upA;
 
   printf("\n\n\n");
   printf("Best regularization - ALPHA = %f - ALPHA^2: = %f\n", alpha,
