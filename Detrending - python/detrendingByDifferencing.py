@@ -99,6 +99,21 @@ def main():
     f.write("XXX 2\n")
 
     i = 0
+    j=0
+
+    for c, df_country in data:
+        j+=1
+        
+        deaths, cases = unpackData(data, c)
+
+        if (len(cases) < 51):
+            continue
+
+        i +=1
+    
+    print(i)
+    print(j)
+    input()
 
     for c, df_country in data:
         

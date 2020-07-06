@@ -13,7 +13,7 @@ import copy
 
 CSV_PATH = Path("Data/COVID-19.csv")
 
-c = "Netherlands"
+c = "Spain"
 
 
 
@@ -102,6 +102,18 @@ def main():
 
     deaths, cases = unpackData(data, c)
 
+    
+    #plt.plot(cases, label = 'new infections')
+    #plt.plot(deaths, label = 'deaths') 
+    #plt.legend()
+    #plt.xlabel("days since outbreak")
+    #plt.ylabel("n")
+    #plt.title("Official corona counts in " + c)
+
+    #plt.show()
+
+    #input()
+
     if (detrendOneCountry(deaths, cases, c, f)):
         pass
 
@@ -149,7 +161,7 @@ def detrendOneCountry(deaths, cases, c, f):
     plt.legend()
     plt.xlabel("days since outbreak")
     plt.ylabel("number of new cases")
-    plt.title("Mlp predictions for cases in " + c)
+    plt.title("Mlp predictions for cases in  " + c)
 
     plt.show()
 
