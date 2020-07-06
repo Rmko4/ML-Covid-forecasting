@@ -13,7 +13,7 @@ import copy
 
 CSV_PATH = Path("Data/COVID-19.csv")
 
-c = "United_States_of_America"
+c = "Netherlands"
 
 
 
@@ -128,58 +128,38 @@ def confirm():
 
 def detrendOneCountry(deaths, cases, c, f):
 
-    originalCases = copy.deepcopy(cases)
-
-    #removes weekly oscillation of data. The model contains the average proportion of cases at a specific weekday compard to the average. 
-    modelWeekdaysCases, cases = detrendWeekdays(cases)
+    originalDeaths = copy.deepcopy(deaths)
 
 
-    #hardcoded network predictionsCases for cases in last week
-    #Germany
-    #predictionsCases = [-0.75781, -1.20060, 0.60509,-1.05637,-0.55658,0.08188,-0.16332]
+    #US
+    #predictionsDeaths = [0.74548, 0.92713,0.93387,-0.75647, 0.17406, -0.67132, -0.60001 ]
+
+    #Netherlands
+    predictionsDeaths = [-0.24860, 0.45175, -0.00387, -0.14417, -0.04351, -0.23001, -0.80216]
 
 
-    #Netherlands:
-    #predictionsCases = [-1.35521 ,-0.39384,0.88670 ,-0.27431 ,-0.94084 ,-0.55098,-0.19458 ]
 
-    #Japan
-    #predictionsCases = [-0.24746,0.34753,-0.18179,-0.22755,-0.25501,0.47892,0.10034]
+    for i in range(len(predictionsDeaths)):
+        predictionsDeaths[i] = predictionsDeaths[i]**3
 
-    #USA
-    #predictionsCases = [-0.88884, 0.61148, 1.91104, 0.96110, 0.45819, 0.91920, -1.02934]
-    #USA correct predictions
-    #predictionsCases = [17.26489, -9.39662, 19.22612, -16.86669, 11.76012, -20.71912, 22.87347]
-
-
-    allZeroPredictions = [ cases[-8] for x in range(7)]
-
-
-    for i in range(len(predictionsCases)):
-        predictionsCases[i] = predictionsCases[i]**3
-
-    predictionsCases[0] =  predictionsCases[0] + cases[-8]
+    predictionsDeaths[0] =  predictionsDeaths[0] + deaths[-8]
     
     for i in range(1,7):
-        predictionsCases[i] = predictionsCases[i-1] + predictionsCases[i]
+        predictionsDeaths[i] = predictionsDeaths[i-1] + predictionsDeaths[i]
 
-    for i in range(len(predictionsCases)):
-        predictionsCases[i] = predictionsCases[i] / modelWeekdaysCases[(len(originalCases) -7 + i ) %7]
-        allZeroPredictions[i] = allZeroPredictions[i] / modelWeekdaysCases[(len(originalCases) -7 + i ) %7]
 
-    predictionsCases.insert(0, originalCases[-8])
-    allZeroPredictions.insert(0, originalCases[-8])
+    predictionsDeaths.insert(0, originalDeaths[-8])
 
 
     t1 = [x for x in range(len(cases) -30, len(cases))]
     t2 = [len(cases)-8 + x for x in range(8)]
 
-    plt.plot(t1, originalCases[-30:], label = 'real data') 
-    plt.plot(t2, predictionsCases, label = 'mlp predictionsCases')
-    plt.plot(t2, allZeroPredictions, label = 'all zero prediction')
+    plt.plot(t1, originalDeaths[-30:], label = 'real data') 
+    plt.plot(t2, predictionsDeaths, label = 'mlp death predictions')
     plt.legend()
     plt.xlabel("days since outbreak")
-    plt.ylabel("number of new cases")
-    plt.title("Mlp predictions for cases in  " + c)
+    plt.ylabel("number of new deaths")
+    plt.title("Mlp predictions for deaths in  " + c)
 
     plt.show()
 
