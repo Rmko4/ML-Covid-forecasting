@@ -708,7 +708,6 @@ int main(int argc, char *argv[]) {
   model = makeMLP(LAYERS, size);
   trainMLP(model, sample, nSeries, windowSize, TESTSIZE, VALSIZE, epochs, mu);
 
-
   // Predictions
   printf("\nPredictions on testing set:\n");
   for (i = 0; i < nSeries; i++) {
