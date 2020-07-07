@@ -18,7 +18,7 @@
 
 #define TESTSIZE 7 // Test size
 #define VALSIZE 14 // Validation size
-#define INSCALE 4
+#define INSCALE 5
 
 typedef struct matrixstruct {
   int rows, columns;
@@ -207,7 +207,7 @@ void setZeroWeight(Weight weight) {
   }
 }
 
-// Unused
+// Unused squared L2 norm
 float l2Norm(Weight weight) {
   int layers;
   int rows, columns;
