@@ -13,7 +13,7 @@ import copy
 
 CSV_PATH = Path("Data/COVID-19.csv")
 
-c = "Netherlands"
+c = "United_States_of_America"
 
 
 
@@ -102,6 +102,18 @@ def main():
 
     deaths, cases = unpackData(data, c)
 
+    
+    #plt.plot(cases, label = 'new infections')
+    #plt.plot(deaths, label = 'deaths') 
+    #plt.legend()
+    #plt.xlabel("days since outbreak")
+    #plt.ylabel("n")
+    #plt.title("Official corona counts in " + c)
+
+    #plt.show()
+
+    #input()
+
     if (detrendOneCountry(deaths, cases, c, f)):
         pass
 
@@ -123,7 +135,24 @@ def detrendOneCountry(deaths, cases, c, f):
 
 
     #hardcoded network predictionsCases for cases in last week
-    predictionsCases = [-1.0420738879899365,-3.9517415810788954,-1.1247763136027755,1.0884700737172943,4.361970671390499,-4.335629011549036,3.904607228327681]
+    #Germany
+    #predictionsCases = [-0.75781, -1.20060, 0.60509,-1.05637,-0.55658,0.08188,-0.16332]
+
+
+    #Netherlands:
+    #predictionsCases = [-1.35521 ,-0.39384,0.88670 ,-0.27431 ,-0.94084 ,-0.55098,-0.19458 ]
+
+    #Japan
+    #predictionsCases = [-0.24746,0.34753,-0.18179,-0.22755,-0.25501,0.47892,0.10034]
+
+    #USA
+    #predictionsCases = [-0.88884, 0.61148, 1.91104, 0.96110, 0.45819, 0.91920, -1.02934]
+    #USA correct predictions
+    #predictionsCases = [17.26489, -9.39662, 19.22612, -16.86669, 11.76012, -20.71912, 22.87347]
+
+
+    allZeroPredictions = [ cases[-8] for x in range(7)]
+
 
     for i in range(len(predictionsCases)):
         predictionsCases[i] = predictionsCases[i]**3
@@ -135,21 +164,22 @@ def detrendOneCountry(deaths, cases, c, f):
 
     for i in range(len(predictionsCases)):
         predictionsCases[i] = predictionsCases[i] / modelWeekdaysCases[(len(originalCases) -7 + i ) %7]
+        allZeroPredictions[i] = allZeroPredictions[i] / modelWeekdaysCases[(len(originalCases) -7 + i ) %7]
 
+    predictionsCases.insert(0, originalCases[-8])
+    allZeroPredictions.insert(0, originalCases[-8])
 
-
-    print(predictionsCases)
-    print(originalCases)
 
     t1 = [x for x in range(len(cases) -30, len(cases))]
-    t2 = [len(cases)-7 + x for x in range(7)]
+    t2 = [len(cases)-8 + x for x in range(8)]
 
     plt.plot(t1, originalCases[-30:], label = 'real data') 
     plt.plot(t2, predictionsCases, label = 'mlp predictionsCases')
+    plt.plot(t2, allZeroPredictions, label = 'all zero prediction')
     plt.legend()
     plt.xlabel("days since outbreak")
     plt.ylabel("number of new cases")
-    plt.title("Mlp predictions for cases in " + c)
+    plt.title("Mlp predictions for cases in  " + c)
 
     plt.show()
 
@@ -173,6 +203,8 @@ def detrendOneCountry(deaths, cases, c, f):
             cases[i] = m.pow(cases[i],float(1)/3)
         else:
             cases[i] = m.pow(abs(cases[i]),float(1)/3) * -1
+
+    print(cases)
 
 
     f.write(c + " " + str(len(cases)) + "\n")

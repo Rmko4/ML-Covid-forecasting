@@ -8,9 +8,12 @@ import numpy as np
 import sys
 from math import log10
 import math as m
+import copy
 
 
 CSV_PATH = Path("Data/COVID-19.csv")
+
+c = "Netherlands"
 
 
 
@@ -96,77 +99,77 @@ def main():
 
     f = open("detrendedDataAllCountries", "w")
 
-    f.write("XXX 2\n")
 
-    i = 0
-    j=0
+    deaths, cases = unpackData(data, c)
 
-    for c, df_country in data:
-        j+=1
-        
-        deaths, cases = unpackData(data, c)
-
-        if (len(cases) < 51):
-            continue
-
-        i +=1
     
-    print(i)
-    print(j)
-    input()
+    #plt.plot(cases, label = 'new infections')
+    #plt.plot(deaths, label = 'deaths') 
+    #plt.legend()
+    #plt.xlabel("days since outbreak")
+    #plt.ylabel("n")
+    #plt.title("Official corona counts in " + c)
 
-    for c, df_country in data:
-        
-        deaths, cases = unpackData(data, c)
+    #plt.show()
 
-        if (len(cases) < 51):
-            continue
-    
+    #input()
 
-        if (detrendOneCountry(deaths, cases, c, f)):
-            i+=1
+    if (detrendOneCountry(deaths, cases, c, f)):
+        pass
 
-    print(i)
-    
-    f.close()
+
 
 def confirm():
     x = input()
     if (x != ''):
         return False
-    return True
-
-def plotData(data1, description1, data2, description2):
-    plt.plot(data1, label = description1)
-    plt.plot(data2, label = description2)
-    plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
-           ncol=2, mode="expand", borderaxespad=0.)
-    plt.show()
+    return True    
 
 
 def detrendOneCountry(deaths, cases, c, f):
 
-    print(c)
-
-    plotData(deaths, "originalDeaths", cases, "originalCases")
+    originalDeaths = copy.deepcopy(deaths)
 
 
-    if (not confirm()):
-        print("data not used")
-        return False
+    #US
+    #predictionsDeaths = [0.74548, 0.92713,0.93387,-0.75647, 0.17406, -0.67132, -0.60001 ]
 
-    print("1")
-
-    #removes weekly oscillation of data. The model contains the average proportion of cases at a specific weekday compard to the average. 
-    modelWeekdaysCases, cases = detrendWeekdays(cases)
+    #Netherlands
+    predictionsDeaths = [-0.24860, 0.45175, -0.00387, -0.14417, -0.04351, -0.23001, -0.80216]
 
 
+
+    for i in range(len(predictionsDeaths)):
+        predictionsDeaths[i] = predictionsDeaths[i]**3
+
+    predictionsDeaths[0] =  predictionsDeaths[0] + deaths[-8]
+    
+    for i in range(1,7):
+        predictionsDeaths[i] = predictionsDeaths[i-1] + predictionsDeaths[i]
+
+
+    predictionsDeaths.insert(0, originalDeaths[-8])
+
+
+    t1 = [x for x in range(len(cases) -30, len(cases))]
+    t2 = [len(cases)-8 + x for x in range(8)]
+
+    plt.plot(t1, originalDeaths[-30:], label = 'real data') 
+    plt.plot(t2, predictionsDeaths, label = 'mlp death predictions')
+    plt.legend()
+    plt.xlabel("days since outbreak")
+    plt.ylabel("number of new deaths")
+    plt.title("Mlp predictions for deaths in  " + c)
+
+    plt.show()
+
+
+    input()
 
     #detrend by differencing
     deaths = detrendByDifferencing(deaths)
     cases = detrendByDifferencing(cases)
 
-    print("2")
 
     #Normalize data
     for i in range(len(cases)):
@@ -181,7 +184,7 @@ def detrendOneCountry(deaths, cases, c, f):
         else:
             cases[i] = m.pow(abs(cases[i]),float(1)/3) * -1
 
-    print("3")
+    print(cases)
 
 
     f.write(c + " " + str(len(cases)) + "\n")
