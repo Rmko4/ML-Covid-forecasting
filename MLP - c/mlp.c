@@ -573,7 +573,7 @@ void trainMLP(MLP model, Matrix *sample, int nSeries, int window, int testSize,
   maxA = MAXA;
   upA = maxA / REGITER;
 
-  // Iterating over degrees of flexibility r converted to a
+  // Iterating over degrees of flexibility r converted to alpha
   for (r = 0; r < REGITER; r++) {
     alpha = r * upA;
     // Every iteration leave out validation range of one series.
@@ -708,6 +708,8 @@ int main(int argc, char *argv[]) {
   model = makeMLP(LAYERS, size);
   trainMLP(model, sample, nSeries, windowSize, TESTSIZE, VALSIZE, epochs, mu);
 
+
+  // Predictions
   printf("\nPredictions on testing set:\n");
   for (i = 0; i < nSeries; i++) {
     printf("%s:\n", names[i]);
