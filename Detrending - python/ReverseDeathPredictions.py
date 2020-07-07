@@ -13,7 +13,7 @@ import copy
 
 CSV_PATH = Path("Data/COVID-19.csv")
 
-c = "Netherlands"
+c = "Germany"
 
 
 
@@ -135,7 +135,10 @@ def detrendOneCountry(deaths, cases, c, f):
     #predictionsDeaths = [0.74548, 0.92713,0.93387,-0.75647, 0.17406, -0.67132, -0.60001 ]
 
     #Netherlands
-    predictionsDeaths = [-0.24860, 0.45175, -0.00387, -0.14417, -0.04351, -0.23001, -0.80216]
+    #predictionsDeaths = [-0.24860, 0.45175, -0.00387, -0.14417, -0.04351, -0.23001, -0.80216]
+
+    #Germany
+    predictionsDeaths = [-0.36001, -0.36102, -0.36437,-0.35062, -0.29802, -0.33310, -0.35482]
 
 
 
